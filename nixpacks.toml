@@ -1,0 +1,14 @@
+[phases.setup]
+cmds = ["pip install --upgrade pip"]
+
+[phases.install]
+cmds = ["pip install -r backend/requirements.txt"]
+
+[phases.build]
+cmds = ["pip install psycopg2-binary"]
+
+[start]
+cmd = "gunicorn --bind 0.0.0.0:$PORT --workers 4 --threads 2 backend.app:create_app()"
+
+[watch]
+paths = ["backend/**/*.py", "frontend/**/*"]
