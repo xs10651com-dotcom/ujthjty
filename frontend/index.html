@@ -1,1 +1,264 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>生活记录系统</title>
+    <script src="https://cdn.jsdelivr.net/npm/vue@3/dist/vue.global.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="app" class="min-h-screen bg-gray-50">
+        <!-- 导航栏 -->
+        <nav class="bg-white shadow-lg">
+            <div class="max-w-7xl mx-auto px-4">
+                <div class="flex justify-between h-16">
+                    <div class="flex items-center">
+                        <h1 class="text-2xl font-bold text-indigo-600">📝 生活记录</h1>
+                    </div>
+                    <div class="flex items-center space-x-4">
+                        <button @click="activeTab = 'records'" class="px-4 py-2 rounded-lg"
+                            :class="activeTab === 'records' ? 'bg-indigo-100 text-indigo-700' : 'text-gray-600'">
+                            记录列表
+                        </button>
+                        <button @click="activeTab = 'new'" class="px-4 py-2 rounded-lg"
+                            :class="activeTab === 'new' ? 'bg-indigo-100 text-indigo-700' : 'text-gray-600'">
+                            新建记录
+                        </button>
+                        <button @click="activeTab = 'checkin'" class="px-4 py-2 rounded-lg"
+                            :class="activeTab === 'checkin' ? 'bg-indigo-100 text-indigo-700' : 'text-gray-600'">
+                            每日打卡
+                        </button>
+                        <button @click="activeTab = 'stats'" class="px-4 py-2 rounded-lg"
+                            :class="activeTab === 'stats' ? 'bg-indigo-100 text-indigo-700' : 'text-gray-600'">
+                            数据统计
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </nav>
 
+        <!-- 主要内容 -->
+        <main class="max-w-7xl mx-auto px-4 py-8">
+            <!-- 记录列表页 -->
+            <div v-if="activeTab === 'records'" class="space-y-6">
+                <div class="flex justify-between items-center">
+                    <h2 class="text-2xl font-bold text-gray-800">我的生活记录</h2>
+                    <div class="flex space-x-2">
+                        <input v-model="searchKeyword" type="text" placeholder="搜索记录..."
+                            class="px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                        <button @click="loadRecords" class="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700">
+                            搜索
+                        </button>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    <div v-for="record in records" :key="record.id" 
+                         class="bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow cursor-pointer"
+                         @click="viewRecordDetail(record.id)">
+                        <div class="flex justify-between items-start mb-3">
+                            <h3 class="text-lg font-semibold text-gray-800">{{ record.title }}</h3>
+                            <span class="text-sm text-gray-500">{{ record.record_date }}</span>
+                        </div>
+                        <p class="text-gray-600 mb-4">{{ record.content }}</p>
+                        <div class="flex flex-wrap gap-2 mb-4">
+                            <span v-if="record.mood" class="px-3 py-1 bg-pink-100 text-pink-800 rounded-full text-sm">
+                                {{ record.mood }}
+                            </span>
+                            <span v-if="record.weather" class="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm">
+                                {{ record.weather }}
+                            </span>
+                            <span v-for="tag in record.tags" :key="tag"
+                                  class="px-3 py-1 bg-gray-100 text-gray-800 rounded-full text-sm">
+                                {{ tag }}
+                            </span>
+                        </div>
+                        <div class="flex justify-between text-sm text-gray-500">
+                            <span>{{ record.location || '未设置地点' }}</span>
+                            <span>{{ record.media_count }} 个媒体文件</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div v-if="totalPages > 1" class="flex justify-center space-x-2">
+                    <button @click="changePage(currentPage - 1)" :disabled="currentPage === 1"
+                            class="px-4 py-2 border rounded-lg disabled:opacity-50">
+                        上一页
+                    </button>
+                    <span class="px-4 py-2">第 {{ currentPage }} 页 / 共 {{ totalPages }} 页</span>
+                    <button @click="changePage(currentPage + 1)" :disabled="currentPage === totalPages"
+                            class="px-4 py-2 border rounded-lg disabled:opacity-50">
+                        下一页
+                    </button>
+                </div>
+            </div>
+
+            <!-- 新建记录页 -->
+            <div v-if="activeTab === 'new'" class="max-w-3xl mx-auto">
+                <h2 class="text-2xl font-bold text-gray-800 mb-6">创建新记录</h2>
+                <form @submit.prevent="submitRecord" class="space-y-6 bg-white p-8 rounded-lg shadow-md">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">标题</label>
+                        <input v-model="newRecord.title" type="text" required
+                               class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">内容</label>
+                        <textarea v-model="newRecord.content" rows="6" required
+                                  class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"></textarea>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">日期</label>
+                            <input v-model="newRecord.record_date" type="date" required
+                                   class="w-full px-4 py-2 border rounded-lg">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">心情</label>
+                            <select v-model="newRecord.mood"
+                                    class="w-full px-4 py-2 border rounded-lg">
+                                <option value="">选择心情</option>
+                                <option v-for="mood in moodOptions" :value="mood">{{ mood }}</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">天气</label>
+                            <select v-model="newRecord.weather"
+                                    class="w-full px-4 py-2 border rounded-lg">
+                                <option value="">选择天气</option>
+                                <option v-for="weather in weatherOptions" :value="weather">{{ weather }}</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">地点</label>
+                        <input v-model="newRecord.location" type="text"
+                               class="w-full px-4 py-2 border rounded-lg">
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">标签（用逗号分隔）</label>
+                        <input v-model="newRecord.tags" type="text"
+                               class="w-full px-4 py-2 border rounded-lg"
+                               placeholder="旅行, 美食, 学习...">
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">上传图片/视频</label>
+                        <input type="file" @change="handleMediaUpload" multiple accept="image/*,video/*"
+                               class="w-full px-4 py-2 border rounded-lg">
+                    </div>
+
+                    <button type="submit" class="w-full bg-indigo-600 text-white py-3 rounded-lg hover:bg-indigo-700">
+                        保存记录
+                    </button>
+                </form>
+            </div>
+
+            <!-- 每日打卡页 -->
+            <div v-if="activeTab === 'checkin'" class="max-w-2xl mx-auto">
+                <h2 class="text-2xl font-bold text-gray-800 mb-6">每日健康打卡</h2>
+                <form @submit.prevent="submitCheckin" class="space-y-6 bg-white p-8 rounded-lg shadow-md">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">日期</label>
+                        <input v-model="checkinData.date" type="date" required
+                               class="w-full px-4 py-2 border rounded-lg">
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">
+                                💤 睡眠时长（小时）
+                            </label>
+                            <input v-model="checkinData.sleep_hours" type="number" step="0.1" min="0" max="24"
+                                   class="w-full px-4 py-2 border rounded-lg">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">
+                                🏃 运动时长（分钟）
+                            </label>
+                            <input v-model="checkinData.exercise_minutes" type="number" min="0"
+                                   class="w-full px-4 py-2 border rounded-lg">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">
+                                💧 饮水量（ml）
+                            </label>
+                            <input v-model="checkinData.water_intake" type="number" min="0"
+                                   class="w-full px-4 py-2 border rounded-lg">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">
+                                😊 心情评分（1-10）
+                            </label>
+                            <input v-model="checkinData.mood_score" type="number" min="1" max="10"
+                                   class="w-full px-4 py-2 border rounded-lg">
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">今日备注</label>
+                        <textarea v-model="checkinData.notes" rows="3"
+                                  class="w-full px-4 py-2 border rounded-lg"></textarea>
+                    </div>
+
+                    <button type="submit" class="w-full bg-green-600 text-white py-3 rounded-lg hover:bg-green-700">
+                        完成打卡
+                    </button>
+                </form>
+            </div>
+
+            <!-- 数据统计页 -->
+            <div v-if="activeTab === 'stats'">
+                <h2 class="text-2xl font-bold text-gray-800 mb-6">数据统计</h2>
+                
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                    <!-- 月度记录统计 -->
+                    <div class="bg-white p-6 rounded-lg shadow-md">
+                        <h3 class="text-lg font-semibold mb-4">月度记录分布</h3>
+                        <div class="flex items-center space-x-4 mb-4">
+                            <input v-model="statsYear" type="number" placeholder="年份" 
+                                   class="px-4 py-2 border rounded-lg">
+                            <input v-model="statsMonth" type="number" placeholder="月份" min="1" max="12"
+                                   class="px-4 py-2 border rounded-lg">
+                            <button @click="loadMonthlyStats" 
+                                    class="px-4 py-2 bg-indigo-600 text-white rounded-lg">
+                                查询
+                            </button>
+                        </div>
+                        <canvas id="monthlyChart" height="300"></canvas>
+                    </div>
+
+                    <!-- 标签统计 -->
+                    <div class="bg-white p-6 rounded-lg shadow-md">
+                        <h3 class="text-lg font-semibold mb-4">标签分析</h3>
+                        <div v-if="tagStats.length > 0">
+                            <div v-for="tag in tagStats.slice(0, 10)" :key="tag.name" 
+                                 class="mb-2">
+                                <div class="flex justify-between mb-1">
+                                    <span>{{ tag.name }}</span>
+                                    <span>{{ tag.count }} 次</span>
+                                </div>
+                                <div class="w-full bg-gray-200 rounded-full h-2">
+                                    <div class="bg-indigo-600 h-2 rounded-full"
+                                         :style="{ width: (tag.count / maxTagCount * 100) + '%' }"></div>
+                                </div>
+                            </div>
+                        </div>
+                        <p v-else class="text-gray-500">暂无标签数据</p>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
